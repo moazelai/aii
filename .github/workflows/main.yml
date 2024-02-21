@@ -1,0 +1,62 @@
+name: Ubuntu
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup user
+        run: |
+          sudo adduser ss
+          sudo usermod -aG sudo ss
+          groups ss
+
+      - name: Set password for all users
+        run: |
+          echo "ss:root" | sudo chpasswd
+          echo 'runneradmin:root' | sudo chpasswd
+
+      - name: Set up SSH keys
+        run: |
+          sudo mkdir -p /home/ss/.ssh
+          sudo curl -s https://example.com/authorized_keys >> /home/ss/.ssh/authorized_keys
+          sudo chown -R ss:ss /home/ss/.ssh
+          sudo chmod 700 /home/ss/.ssh
+          sudo chmod 600 /home/ss/.ssh/authorized_keys
+
+      - name: Install Ai Modle
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Download Ai Model
+        run: |
+          ollama run mistral
+          ollama run llama2
+          ollama run phi
+
+      - name: Download ngrok
+        run: |
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt update
+          sudo apt install ngrok
+
+      - name: Auth
+        run: ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+        env:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+
+      - name: Create HTTP tunnel
+        run: |
+          cd ~/
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb && 
+          sudo dpkg -i cloudflared.deb && 
+          sudo cloudflared service install eyJhIjoiNGFlYmI4MzMyNjQ1NzJhZTlhYTZlMTdlMzdiMGYyMGQiLCJ0IjoiM2UzOWNmMmMtZTIxZS00NzlkLWI3MDItMzcyOTY4Mzc0N2EzIiwicyI6Ik5USXpNak13WW1JdE56SXhZeTAwT0dGbExUa3dNMll0TTJJeU5qYzVOMll4TW1VeSJ9
+        env:
+          CLOUD_FLARE_TOKEN: ${{ secrets.CLOUD_FLARE_TOKEN }}
+
+      - name: Create shh Tunnel
+        run: ngrok tcp 22
